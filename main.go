@@ -14,46 +14,83 @@ import (
 
 var (
   repo = domains.New()
+  url = "/todos/"
 )
 
 func main() {
 
-  http.HandleFunc("/todos/", handler)
+  http.HandleFunc(url, handler)
   log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func get(path string) []byte {
+  id := path[len(url):]
+  if id == "" {
+    todos, err := repo.GetAll()
+    if err != nil {
+      return []byte(`{ "error": "could not get todo"}`)
+    }
+    b, err := json.Marshal(todos)
+    if err != nil {
+      return []byte(`{ "error": "could not converted json"}`)
+    }
+    return b
+  } else {
+    todo, err := repo.Get(domains.TodoID(id))
+    if err != nil {
+      return []byte(`{ "error": "could not get todos"}`)
+    }
+    b, err := json.Marshal(*todo)
+    if err != nil {
+      return []byte(`{ "error": "could not converted json"}`)
+    }
+    return b
+  }
+}
+
+func create(todo domains.Todo) []byte {
+  t, err := repo.Create(&todo, time.Now())
+  if err != nil {
+    return []byte(`{ "error": "invalid request" }`)
+  }
+
+  b, err := json.Marshal(*t)
+  if err != nil {
+    return []byte(`{ "error": "could not converted json"}`)
+  }
+
+  return b
+}
+
+func update(todo domains.Todo) []byte {
+  t, err := repo.Update(&todo, time.Now())
+  if err != nil {
+    return []byte(`{ "error": "invalid request" }`)
+  }
+
+  b, err := json.Marshal(*t)
+  if err != nil {
+    return []byte(`{ "error": "could not converted json"}`)
+  }
+  return b
+}
+
+func delete(todo domains.Todo) []byte {
+  t, err := repo.Delete(&todo)
+  if err != nil {
+    return []byte(`{ "error": "invalid request" }`)
+  }
+
+  b, err := json.Marshal(*t)
+  if err != nil {
+    return []byte(`{ "error": "could not converted json"}`)
+  }
+  return b
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
   if r.Method == http.MethodGet {
-    id := r.URL.Path[len("/todos/"):]
-    if id == "" {
-      todos, err := repo.GetAll()
-      if err != nil {
-        w.WriteHeader(http.StatusBadRequest)
-        fmt.Fprintf(w, "invalid request. err = %v", err)
-        return
-      }
-      b, err := json.Marshal(todos)
-      if err != nil {
-        w.WriteHeader(http.StatusBadRequest)
-        fmt.Fprintf(w, "invalid request. err = %v", err)
-        return
-      }
-      fmt.Fprintf(w, "%s", b)
-    } else {
-      todo, err := repo.Get(domains.TodoID(id))
-      if err != nil {
-        w.WriteHeader(http.StatusBadRequest)
-        fmt.Fprintf(w, "invalid request. err = %v", err)
-        return
-      }
-      b, err := json.Marshal(*todo)
-      if err != nil {
-        w.WriteHeader(http.StatusBadRequest)
-        fmt.Fprintf(w, "invalid request. err = %v", err)
-        return
-      }
-      fmt.Fprintf(w, "%s", b)
-    }
+    fmt.Fprintf(w, "%s", get(r.URL.Path))
   }
 
   body := r.Body
@@ -66,57 +103,15 @@ func handler(w http.ResponseWriter, r *http.Request) {
   json.Unmarshal(buf.Bytes(), &todo)
 
   if r.Method == http.MethodPost {
-    t, err := repo.Create(&todo, time.Now())
-    if err != nil {
-      w.WriteHeader(http.StatusBadRequest)
-      fmt.Fprintf(w, "invalid request. err = %v", err)
-      return
-    }
-
-    b, err := json.Marshal(*t)
-    if err != nil {
-      w.WriteHeader(http.StatusBadRequest)
-      fmt.Fprintf(w, "invalid request. err = %v", err)
-      return
-    }
-     w.WriteHeader(http.StatusCreated)
-    fmt.Fprintf(w, "%s", b)
+    fmt.Fprintf(w, "%s", create(todo))
   }
 
   if r.Method == http.MethodPut {
-    t, err := repo.Update(&todo, time.Now())
-    if err != nil {
-      w.WriteHeader(http.StatusBadRequest)
-      fmt.Fprintf(w, "invalid request. err = %v", err)
-      return
-    }
-
-    b, err := json.Marshal(*t)
-    if err != nil {
-      w.WriteHeader(http.StatusBadRequest)
-      fmt.Fprintf(w, "invalid request. err = %v", err)
-      return
-    }
-     w.WriteHeader(http.StatusCreated)
-    fmt.Fprintf(w, "%s", b)
+    fmt.Fprintf(w, "%s", update(todo))
   }
 
   if r.Method == http.MethodDelete {
-    t, err := repo.Delete(&todo)
-    if err != nil {
-      w.WriteHeader(http.StatusBadRequest)
-      fmt.Fprintf(w, "invalid request. err = %v", err)
-      return
-    }
-
-    b, err := json.Marshal(*t)
-    if err != nil {
-      w.WriteHeader(http.StatusBadRequest)
-      fmt.Fprintf(w, "invalid request. err = %v", err)
-      return
-    }
-     w.WriteHeader(http.StatusCreated)
-    fmt.Fprintf(w, "%s", b)
+    fmt.Fprintf(w, "%s", delete(todo))
   }
 }
 
