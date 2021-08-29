@@ -3,6 +3,8 @@ package domains
 import (
   "time"
   "errors"
+  "sync"
+
   "github.com/google/uuid"
 )
 
@@ -30,10 +32,14 @@ func New() TodoRepository {
 }
 
 type todoRepository struct {
+  sync.RWMutex
   database map[TodoID]*Todo
 }
 
 func (repo *todoRepository) Create (todo *Todo, now time.Time) (*Todo, error) {
+  repo.Lock()
+  defer repo.Unlock()
+
   todo.Id = TodoID(uuid.New().String())
   todo.CreatedAt = now
 
@@ -46,6 +52,9 @@ func (repo *todoRepository) Delete (todo *Todo) (*Todo, error) {
     return nil, errors.New("idが指定されてない")
   }
 
+  repo.Lock()
+  defer repo.Unlock()
+
   delete(repo.database, todo.Id)
 
   return todo, nil
@@ -56,6 +65,9 @@ func (repo *todoRepository) Get (id TodoID) (*Todo, error) {
     return nil, errors.New("idが指定されていない")
   }
 
+  repo.RLock()
+  defer repo.RUnlock()
+
   todo, ok := repo.database[id]
   if !ok {
     return nil, errors.New("Todoが見つからない")
@@ -64,6 +76,9 @@ func (repo *todoRepository) Get (id TodoID) (*Todo, error) {
 }
 
 func (repo *todoRepository) GetAll () ([]*Todo, error) {
+  repo.RLock()
+  defer repo.RUnlock()
+
   todos := make([]*Todo, 0, len(repo.database))
   for _, todo := range repo.database {
     todos = append(todos, todo)
@@ -76,6 +91,9 @@ func (repo *todoRepository) Update (todo *Todo, now time.Time) (*Todo, error) {
   if todo.Id == "" {
     return nil, errors.New("idが指定されてない")
   }
+
+  repo.Lock()
+  defer repo.Unlock()
 
   old, ok := repo.database[todo.Id]
   if !ok {
